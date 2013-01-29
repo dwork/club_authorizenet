@@ -1,0 +1,152 @@
+<?php
+
+/**
+ * @file
+ * Implements interface from Club Authorizenet using Cron
+ */
+
+/**
+ * Copied from "Example using Cron API, including hook_cron() and hook_cron_queue_info().
+ *
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function club_authorizenet_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#club_authorizenet':
+      return t('Interfaces Club Authorizenet data on demand, and controls how frequently CRON is run.');
+  }
+}  //  End of club_base_help().
+
+
+/**
+ * Implements hook_menu().
+ */
+function club_authorizenet_menu() {
+
+  $items['admin/config/system/authorizenet'] = array(
+    'title' => 'Authorize.net Interface',
+    'description' => 'Run Club Authorize.net functions on demand, or set frequency of interface',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('club_authorizenet_form'),
+    'access arguments' => array('administer users'),
+    'access callback' => TRUE,
+  );
+
+  return $items;
+}
+
+/**
+ * The form to provide a link to cron.php.
+ */
+function club_authorizenet_form($form, &$form_state) {
+  $form['status'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Club Authorize.net"Cron" status information'),
+  );
+  $form['status']['intro'] = array(
+    '#markup' => '<div>' . t('This job controls how often any Authorize.net cron jobs are run. You can run this job each time a new member is added, or adjust the frequency. The frequency is initially set to once a day. If you have administrative privileges you can run cron from this page and see the results.') . '</div>',
+  );
+  $form['status']['last'] = array(
+    '#markup' => '<div>' . t('club_authorizenet_cron() will next execute the first time cron runs after %time (%seconds seconds from now)' . '</div>',
+      array(
+        '%time' => date_iso8601(variable_get('club_authorizenet_next_execution', time())),
+        '%seconds' => variable_get('club_authorizenet_next_execution', time()) - time(),
+      )
+    ),
+  );
+
+  if (user_access('administer site configuration')) {
+    $form['cron_run'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Run cron manually'),
+    );
+    $form['cron_run']['cron_reset'] = array(
+      '#type' => 'checkbox',
+      '#title' => t("Run club_authorizenet's cron regardless of whether interval has expired."),
+      '#default_value' => TRUE,
+    );
+    $form['cron_run']['cron_trigger'] = array(
+      '#type' => 'submit',
+      '#value' => t('Run cron now'),
+      '#submit' => array('club_authorizenet_form_cron_run_submit'),
+    );
+  }
+
+  $form['configuration'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Configuration of club_authorizenet_cron()'),
+  );
+  $form['configuration']['club_base_interval'] = array(
+    '#type' => 'select',
+    '#title' => t('Cron interval'),
+    '#description' => t('Time after which club_authorizenet_cron will respond to a processing request.'),
+    '#default_value' => variable_get('club_authorizenet_interval', 60*60*24),
+    '#options' => array(
+      60 => t('1 minute'),
+      300 => t('5 minutes'),
+      3600 => t('1 hour'),
+      60*60*24 => t('1 day'),
+    ),
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Allow user to directly execute cron, optionally forcing it.
+ */
+function club_authorizenet_form_cron_run_submit($form, &$form_state) {
+  if (!empty($form_state['values']['cron_reset'])) {
+    variable_set('club_authorizenet_next_execution', 0);
+  }
+
+  // We don't usually use globals in this way. This is used here only to
+  // make it easy to tell if cron was run by this form.
+  $GLOBALS['club_authorizenet_show_status_message'] = TRUE;
+  if (drupal_cron_run()) {
+    drupal_set_message(t('Cron ran successfully.'));
+  }
+  else {
+    drupal_set_message(t('Cron run failed.'), 'error');
+  }
+}
+
+/**
+ * Implements hook_cron().
+ *
+ * hook_cron() is the traditional (pre-Drupal 7) hook for doing "background"
+ * processing. It gets called every time the Drupal cron runs and must decide
+ * what it will do.
+ *
+ * In this example, it does a watchdog() call after the time named in
+ * the variable 'club_base_next_execution' has arrived, and then it
+ * resets that variable to a time in the future.
+ */
+function club_authorizenet_cron() {
+  // Default to an hourly interval. Of course, cron has to be running at least
+  // hourly for this to work.
+  $interval = variable_get('club_authorizenet_interval', 60*60);
+  // We usually don't want to act every time cron runs (which could be every
+  // minute) so keep a time for the next run in a variable.
+
+  if (time() >= variable_get('club_authorizenet_next_execution', 0)) {
+    // This is a silly example of a cron job.
+    // It just makes it obvious that the job has run without
+    // making any changes to your database.
+    club_authorizenet_interface();
+    watchdog('club_authorizenet', 'club_authorizenet interface ran');
+    if (!empty($GLOBALS['club_authorizenet_show_status_message'])) {
+      drupal_set_message(t('club_authorizenet executed at %time', array('%time' => date_iso8601(time(0)))));
+    }
+    variable_set('club_authorizenet_next_execution', time() + $interval);
+  }
+}
+
+/*
+ * club_authorizenet_interface -- at present, no actions here
+ */
+function club_authorizenet_interface () {
+}

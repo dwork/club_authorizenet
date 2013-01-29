@@ -1,0 +1,22 @@
+<?php
+
+/**
+ * @file
+ * The installation instructions for the Club Authorizenet 
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+ function club_authorizenet_install() {
+ }
+/**
+ * @file
+ */
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function club_authorizenet_uninstall() {
+}  //  End of club_authorizenet_uninstall
+
